@@ -1,6 +1,14 @@
 📁 pdf_numbering_tool
 ├── 📁 .venv
+├── 📂 input
+│   └── 📕 20250901第三方列印宅配單.pdf
+├── 📂 output
+│   └── 📕 20250901第三方列印宅配單_numbered.pdf
+├── 📂 scripts
 ├── 📖 README.md
+├── 🔧 coords.env
+├── 📋 numbering_tool.log
+├── 🐍 numbering_tool.py
 ├── 📄 project_structure.txt
 ├── 🐍 project_tree_generator.py
 └── 📋 requirements.txt
