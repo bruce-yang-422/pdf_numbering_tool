@@ -15,7 +15,6 @@ Email: bruce.yichai20250505@gmail.com
 版本: 1.0 (2025-11-14)
 """
 
-import os
 import sys
 import logging
 from pathlib import Path
@@ -26,9 +25,34 @@ from pypdf import PdfReader, PdfWriter
 
 
 # -------------------------------------------------------------
+# 自我定位：獲取程式所在目錄（不依賴當前工作目錄）
+# -------------------------------------------------------------
+def get_script_dir():
+    """
+    獲取程式所在目錄的絕對路徑
+    支援：
+    - 直接執行 Python 腳本
+    - 打包成 EXE（PyInstaller）
+    - 從任何位置執行
+    """
+    if getattr(sys, 'frozen', False):
+        # 打包成 EXE 的情況（PyInstaller）
+        # sys.executable 是 EXE 的路徑
+        return Path(sys.executable).parent.resolve()
+    else:
+        # 直接執行 Python 腳本的情況
+        # __file__ 是當前腳本的路徑
+        return Path(__file__).parent.resolve()
+
+
+# 獲取程式所在目錄（全域變數，只計算一次）
+SCRIPT_DIR = get_script_dir()
+
+
+# -------------------------------------------------------------
 # 設定 Logging
 # -------------------------------------------------------------
-LOG_FILE = "numbering_tool.log"
+LOG_FILE = SCRIPT_DIR / "numbering_tool.txt"
 
 
 def setup_logging():
@@ -43,7 +67,7 @@ def setup_logging():
         format=log_format,
         datefmt=date_format,
         handlers=[
-            logging.FileHandler(LOG_FILE, mode='w', encoding='utf-8'),  # 覆蓋模式
+            logging.FileHandler(str(LOG_FILE), mode='w', encoding='utf-8'),  # 覆蓋模式
             logging.StreamHandler(sys.stdout)  # 同時輸出到控制台
         ]
     )
@@ -60,11 +84,18 @@ def setup_logging():
 # -------------------------------------------------------------
 # 讀取設定檔 coords.env
 # -------------------------------------------------------------
-def load_config(config_path="coords.env", logger=None):
+def load_config(config_path=None, logger=None):
     """讀取設定檔 coords.env"""
+    if config_path is None:
+        # 使用程式所在目錄的 coords.env
+        config_path = SCRIPT_DIR / "coords.env"
+    else:
+        # 如果是相對路徑，轉換為基於程式目錄的絕對路徑
+        config_path = SCRIPT_DIR / config_path
+    
     config = {}
 
-    if not os.path.exists(config_path):
+    if not config_path.exists():
         error_msg = f"錯誤：找不到設定檔 {config_path}"
         if logger:
             logger.error(error_msg)
@@ -74,7 +105,7 @@ def load_config(config_path="coords.env", logger=None):
     if logger:
         logger.info(f"讀取設定檔：{config_path}")
 
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(str(config_path), "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
 
@@ -125,12 +156,17 @@ def extract_prefix_sort_key(filename):
     return (2, prefix.lower() if prefix else "")
 
 
-def find_all_pdfs_with_selection(input_dir="input", logger=None):
+def find_all_pdfs_with_selection(input_dir=None, logger=None):
     """尋找所有 PDF 並讓使用者選擇要處理的檔案"""
-    input_path = Path(input_dir)
+    if input_dir is None:
+        # 使用程式所在目錄的 input 資料夾
+        input_path = SCRIPT_DIR / "input"
+    else:
+        # 如果是相對路徑，轉換為基於程式目錄的絕對路徑
+        input_path = SCRIPT_DIR / input_dir
 
     if not input_path.exists():
-        error_msg = f"錯誤：找不到資料夾 {input_dir}"
+        error_msg = f"錯誤：找不到資料夾 {input_path}"
         if logger:
             logger.error(error_msg)
         print(error_msg)
@@ -148,7 +184,7 @@ def find_all_pdfs_with_selection(input_dir="input", logger=None):
     pdf_files = sorted(pdf_files, key=extract_prefix_sort_key)
 
     if logger:
-        logger.info(f"在 {input_dir} 資料夾中找到 {len(pdf_files)} 個 PDF 檔案")
+        logger.info(f"在 {input_path} 資料夾中找到 {len(pdf_files)} 個 PDF 檔案")
 
     # 如果只有一個檔案，直接返回，跳過選擇步驟
     if len(pdf_files) == 1:
@@ -295,8 +331,10 @@ def process_pdf(input_pdf_path, output_pdf_path, start_number, config, logger=No
                 logger.error(error_msg)
             raise Exception(error_msg)
 
-    Path(output_pdf_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(output_pdf_path, "wb") as f:
+    # 確保輸出目錄存在（基於程式目錄）
+    output_dir = Path(output_pdf_path).parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with open(str(output_pdf_path), "wb") as f:
         writer.write(f)
 
     if logger:
@@ -316,10 +354,11 @@ def main():
     print("PDF Numbering Tool")
     print("=" * 50)
 
-    config = load_config("coords.env", logger)
+    # 使用自我定位的路徑（不依賴當前工作目錄）
+    config = load_config(None, logger)  # None 表示使用預設路徑（程式目錄下的 coords.env）
     print("✓ 已載入設定\n")
 
-    pdf_list = find_all_pdfs_with_selection("input", logger)
+    pdf_list = find_all_pdfs_with_selection(None, logger)  # None 表示使用預設路徑（程式目錄下的 input）
     print()
 
     # --- 選擇編號模式 ---
@@ -382,8 +421,8 @@ def main():
         else:
             start_number = next_number
 
-        # 生成輸出檔名（避免覆蓋）
-        output_pdf_path = Path("output") / f"{pdf_path.stem}_numbered.pdf"
+        # 生成輸出檔名（避免覆蓋，使用程式目錄下的 output 資料夾）
+        output_pdf_path = SCRIPT_DIR / "output" / f"{pdf_path.stem}_numbered.pdf"
         
         try:
             next_number = process_pdf(pdf_path, output_pdf_path, start_number, config, logger)
@@ -401,6 +440,7 @@ def main():
     logger.info("=" * 60)
     logger.info(summary)
     logger.info(f"Log 檔案已儲存至：{LOG_FILE}")
+    logger.info(f"程式所在目錄：{SCRIPT_DIR}")
     logger.info("=" * 60)
 
     print("\n" + "=" * 50)
