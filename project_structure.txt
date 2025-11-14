@@ -1,5 +1,6 @@
 📁 pdf_numbering_tool
 ├── 📁 .venv
+├── 📖 README.md
 ├── 📄 project_structure.txt
 ├── 🐍 project_tree_generator.py
 └── 📋 requirements.txt
